@@ -2,16 +2,15 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/usr/local/bin:${env.PATH}"
         DOCKER_IMAGE = 'sarojnayak1983/bankpro:latest'
         DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
         DOCKER = '/usr/local/bin/docker'
     }
 
     tools {
-        maven 'MAVEN_HOME' // Must match the Maven installation name in Jenkins
+        maven 'MAVEN_HOME' // Must match your Jenkins Maven install name
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
@@ -42,14 +41,16 @@ pipeline {
         stage('Deploy via Ansible') {
             steps {
                 dir('ansible') {
-                    sh 'ansible-playbook -i inventory.ini deploy-docker-app.yml'
+                    withEnv(["PATH+EXTRA=/opt/homebrew/bin"]) {
+                        sh 'ansible-playbook -i inventory.ini deploy-docker-app.yml'
+                    }
                 }
             }
         }
     }
     post {
         success {
-            echo '✅ Success: App built with Maven, containerized, pushed, and deployed!'
+            echo '✅ Success: App built, containerized, pushed, and deployed!'
         }
         failure {
             echo '❌ Pipeline failed. Please check the error logs.'

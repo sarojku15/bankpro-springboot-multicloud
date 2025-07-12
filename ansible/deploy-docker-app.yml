@@ -44,11 +44,18 @@
         yum install -y python3-pip || amazon-linux-extras install -y python3
       when: ansible_facts['distribution'] == "Amazon"
 
+    # --- CRITICAL FIX for OpenSSL/urllib3 on Amazon Linux 2 ---
+    - name: Ensure compatible urllib3 and requests on Amazon Linux 2
+      shell: |
+        pip3 install "urllib3<2.0.0" "requests<2.32.0" --force-reinstall
+      when: ansible_facts['distribution'] == "Amazon"
+
     - name: Install docker python module (Amazon Linux 2)
       pip:
         name: docker
       when: ansible_facts['distribution'] == "Amazon"
 
+    # For Debian 12+, pip needs special handling
     - name: Ensure community.docker is present (Debian)
       pip:
         name: docker

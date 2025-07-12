@@ -2,27 +2,51 @@
 - hosts: all
   become: yes
   tasks:
-    - name: Install Docker
-      apt:
+    - name: Install Docker (Ubuntu/Debian)
+      package:
         name: docker.io
         state: present
-        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
 
-    - name: Install pip3
-      apt:
+    - name: Install Docker (RHEL/CentOS/Amazon)
+      package:
+        name: docker
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Install python3-pip (Debian)
+      package:
         name: python3-pip
         state: present
+      when: ansible_facts['os_family'] == "Debian"
 
-    - name: Install Docker python module
+    - name: Install python3-docker (Debian)
+      package:
+        name: python3-docker
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Install pip and docker (RHEL/CentOS/Amazon)
+      package:
+        name:
+          - python3-pip
+          - python3-docker
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Ensure community.docker is present
       pip:
         name: docker
+        extra_args: --break-system-packages
+      when: ansible_facts['os_family'] == "Debian" and ansible_facts['distribution_major_version']|int >= 12
+      ignore_errors: yes
 
     - name: Login to DockerHub
       community.docker.docker_login:
-        username: "<your-dockerhub-username>"
-        password: "<your-dockerhub-password>"
+        username: "sarojnayak1983"
+        password: "{{ lookup('env', 'DOCKERHUB_PASSWORD') }}"
 
-    - name: Stop previous container
+    - name: Stop previous container if running
       community.docker.docker_container:
         name: bankpro-app
         state: absent
@@ -30,14 +54,14 @@
 
     - name: Pull image
       community.docker.docker_image:
-        name: "<your-dockerhub-username>/bankpro-app"
+        name: "sarojnayak1983/bankpro"
         tag: latest
         source: pull
 
     - name: Run container
       community.docker.docker_container:
         name: bankpro-app
-        image: "<your-dockerhub-username>/bankpro-app:latest"
+        image: "sarojnayak1983/bankpro:latest"
         ports:
           - "8080:8080"
         state: started

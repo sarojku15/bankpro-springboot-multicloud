@@ -3,11 +3,11 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'sarojku15/bankpro:latest'
-        DOCKERHUB_CREDENTIALS = 'dockerhub-credentials-id'
+        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
     }
 
     tools {
-        maven 'Maven 3.9.6'   // Set to the Maven version installed in Jenkins (or use 'maven' if default)
+        maven 'MAVEN_HOME' // This should now match your Jenkins tool name!
     }
 
     stages {
@@ -19,7 +19,6 @@ pipeline {
         stage('Maven Build') {
             steps {
                 sh 'mvn clean package -DskipTests'
-                // If you use the Maven wrapper, use: sh './mvnw clean package -DskipTests'
             }
         }
         stage('Docker Build') {

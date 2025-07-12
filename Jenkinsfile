@@ -4,10 +4,11 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'sarojku15/bankpro:latest'
         DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
+        DOCKER = '/usr/local/bin/docker'
     }
 
     tools {
-        maven 'MAVEN_HOME' // This should now match your Jenkins tool name!
+        maven 'MAVEN_HOME' // Must match the Maven installation name in Jenkins
     }
 
     stages {
@@ -23,16 +24,16 @@ pipeline {
         }
         stage('Docker Build') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh '${DOCKER} build -t $DOCKER_IMAGE .'
             }
         }
         stage('Docker Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}", usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
                     sh '''
-                        echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
-                        docker push $DOCKER_IMAGE
-                        docker logout
+                        echo "$DOCKERHUB_PASS" | ${DOCKER} login -u "$DOCKERHUB_USER" --password-stdin
+                        ${DOCKER} push $DOCKER_IMAGE
+                        ${DOCKER} logout
                     '''
                 }
             }

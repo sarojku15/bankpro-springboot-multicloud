@@ -2,45 +2,61 @@
 - hosts: all
   become: yes
   tasks:
+    # Ubuntu/Debian (Azure)
     - name: Install Docker (Ubuntu/Debian)
-      package:
+      apt:
         name: docker.io
         state: present
+        update_cache: yes
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Install Docker (RHEL/CentOS/Amazon)
-      package:
-        name: docker
-        state: present
-      when: ansible_facts['os_family'] == "RedHat"
+    # Amazon Linux 2 (AWS)
+    - name: Install Docker (Amazon Linux 2)
+      shell: |
+        amazon-linux-extras install -y docker || yum install -y docker
+      args:
+        creates: /usr/bin/docker
+      when: ansible_facts['distribution'] == "Amazon"
 
-    - name: Install python3-pip (Debian)
-      package:
+    # Start and enable Docker on all
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # Python and pip dependencies for Ubuntu
+    - name: Install python3-pip (Ubuntu/Debian)
+      apt:
         name: python3-pip
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Install python3-docker (Debian)
-      package:
+    - name: Install python3-docker (Ubuntu/Debian)
+      apt:
         name: python3-docker
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Install pip and docker (RHEL/CentOS/Amazon)
-      package:
-        name:
-          - python3-pip
-          - python3-docker
-        state: present
-      when: ansible_facts['os_family'] == "RedHat"
+    # Python and pip dependencies for Amazon Linux
+    - name: Ensure pip3 is installed (Amazon Linux 2)
+      shell: |
+        yum install -y python3-pip || amazon-linux-extras install -y python3
+      when: ansible_facts['distribution'] == "Amazon"
 
-    - name: Ensure community.docker is present
+    - name: Install docker python module (Amazon Linux 2)
+      pip:
+        name: docker
+      when: ansible_facts['distribution'] == "Amazon"
+
+    - name: Ensure community.docker is present (Debian)
       pip:
         name: docker
         extra_args: --break-system-packages
       when: ansible_facts['os_family'] == "Debian" and ansible_facts['distribution_major_version']|int >= 12
       ignore_errors: yes
 
+    # DockerHub login
     - name: Login to DockerHub
       community.docker.docker_login:
         username: "sarojnayak1983"

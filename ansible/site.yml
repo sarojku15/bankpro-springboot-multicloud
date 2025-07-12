@@ -1,0 +1,40 @@
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install Docker on Ubuntu (Azure)
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure pip3 is installed on Ubuntu
+      apt:
+        name: python3-pip
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure pip3 is installed on Amazon Linux (any version)
+      shell: |
+        which pip3 || (dnf install -y python3-pip || yum install -y python3-pip || python3 -m ensurepip)
+      when: ansible_distribution == "Amazon"
+
+    - name: Start and enable Docker (all OS)
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group on Amazon Linux
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+      when: ansible_distribution == "Amazon"
+
+    - name: Add azureuser to docker group on Ubuntu
+      user:
+        name: azureuser
+        groups: docker
+        append: yes
+      when: ansible_os_family == "Debian"

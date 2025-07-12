@@ -1,0 +1,44 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Install pip3
+      apt:
+        name: python3-pip
+        state: present
+
+    - name: Install Docker python module
+      pip:
+        name: docker
+
+    - name: Login to DockerHub
+      community.docker.docker_login:
+        username: "<your-dockerhub-username>"
+        password: "<your-dockerhub-password>"
+
+    - name: Stop previous container
+      community.docker.docker_container:
+        name: bankpro-app
+        state: absent
+        force_kill: yes
+
+    - name: Pull image
+      community.docker.docker_image:
+        name: "<your-dockerhub-username>/bankpro-app"
+        tag: latest
+        source: pull
+
+    - name: Run container
+      community.docker.docker_container:
+        name: bankpro-app
+        image: "<your-dockerhub-username>/bankpro-app:latest"
+        ports:
+          - "8080:8080"
+        state: started
+        restart_policy: always

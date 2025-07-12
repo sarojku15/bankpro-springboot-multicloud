@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        PATH = "/usr/local/bin:${env.PATH}"
         DOCKER_IMAGE = 'sarojku15/bankpro:latest'
         DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
         DOCKER = '/usr/local/bin/docker'
@@ -10,7 +11,7 @@ pipeline {
     tools {
         maven 'MAVEN_HOME' // Must match the Maven installation name in Jenkins
     }
-
+    
     stages {
         stage('Checkout') {
             steps {

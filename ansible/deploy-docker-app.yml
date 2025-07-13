@@ -1,8 +1,12 @@
 ---
 - hosts: all
   become: yes
+  vars:
+    aws_python_bin: "/usr/bin/python3.8"
+    aws_pip_bin: "/usr/bin/pip3.8"
+
   tasks:
-    # Ubuntu/Debian (Azure)
+    # 1. Install Docker (per OS)
     - name: Install Docker (Ubuntu/Debian)
       apt:
         name: docker.io
@@ -10,26 +14,24 @@
         update_cache: yes
       when: ansible_facts['os_family'] == "Debian"
 
-    # Amazon Linux 2 (AWS)
     - name: Install Docker (Amazon Linux 2)
-      yum:
-        name: docker
-        state: present
+      shell: |
+        amazon-linux-extras install -y docker || yum install -y docker
+      args:
+        creates: /usr/bin/docker
       when: ansible_facts['distribution'] == "Amazon"
 
-    # Start and enable Docker on all
+    # 2. Start and enable Docker service everywhere
     - name: Start and enable Docker service
       service:
         name: docker
         state: started
         enabled: yes
 
-    # Python and pip dependencies for Ubuntu/Debian
-    - name: Install python3 and pip3 (Ubuntu/Debian)
+    # 3. Python + pip for Docker SDK
+    - name: Install python3-pip (Ubuntu/Debian)
       apt:
-        name:
-          - python3
-          - python3-pip
+        name: python3-pip
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
@@ -39,32 +41,21 @@
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
-    # Python and pip dependencies for Amazon Linux
-    - name: Install python3 and pip3 (Amazon Linux 2)
-      yum:
-        name:
-          - python3
-          - python3-pip
-        state: present
+    - name: Ensure pip3.8 is installed (Amazon Linux 2)
+      shell: |
+        yum install -y python3-pip || amazon-linux-extras install -y python3
       when: ansible_facts['distribution'] == "Amazon"
 
-    # CRITICAL: Ensure compatible urllib3 and requests for community.docker
-    - name: Ensure compatible urllib3 and requests (Amazon Linux 2)
-      pip:
-        name:
-          - "urllib3<2.0.0"
-          - "requests<2.32.0"
-        executable: pip3
-        state: forcereinstall
+    - name: Ensure compatible urllib3 and requests on Amazon Linux 2 (Python 3.8)
+      shell: |
+        {{ aws_pip_bin }} install --force-reinstall "urllib3<2.0.0" "requests<2.32.0"
       when: ansible_facts['distribution'] == "Amazon"
 
     - name: Install docker python module (Amazon Linux 2)
-      pip:
-        name: docker
-        executable: pip3
+      shell: |
+        {{ aws_pip_bin }} install docker
       when: ansible_facts['distribution'] == "Amazon"
 
-    # For Debian 12+, pip needs special handling
     - name: Ensure community.docker is present (Debian)
       pip:
         name: docker
@@ -72,24 +63,41 @@
       when: ansible_facts['os_family'] == "Debian" and ansible_facts['distribution_major_version']|int >= 12
       ignore_errors: yes
 
-    # DockerHub login
+    - name: Set Ansible python interpreter (Amazon Linux 2)
+      set_fact:
+        ansible_python_interpreter: "{{ aws_python_bin }}"
+      when: ansible_facts['distribution'] == "Amazon"
+
+    # 4. DockerHub Login (always do this before pulling)
     - name: Login to DockerHub
       community.docker.docker_login:
         username: "sarojnayak1983"
         password: "{{ lookup('env', 'DOCKERHUB_PASSWORD') }}"
 
+    # 5. Remove old running container (if any)
     - name: Stop previous container if running
       community.docker.docker_container:
         name: bankpro-app
         state: absent
         force_kill: yes
+      ignore_errors: yes
 
+    # 6. Remove old bankpro image (optional but best practice)
+    - name: Remove old bankpro image (if any)
+      community.docker.docker_image:
+        name: "sarojnayak1983/bankpro"
+        tag: "latest"
+        state: absent
+      ignore_errors: yes
+
+    # 7. Pull the latest image
     - name: Pull image
       community.docker.docker_image:
         name: "sarojnayak1983/bankpro"
         tag: latest
         source: pull
 
+    # 8. Run new container
     - name: Run container
       community.docker.docker_container:
         name: bankpro-app
@@ -98,3 +106,13 @@
           - "8080:8080"
         state: started
         restart_policy: always
+
+    # 9. (Optional) Print status for debugging
+    - name: Print running containers
+      shell: docker ps
+      register: psout
+      changed_when: false
+
+    - name: Show running containers output
+      debug:
+        var: psout.stdout

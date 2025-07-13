@@ -52,6 +52,7 @@
           - python3
           - python3-pip
         state: present
+        use_backend: "auto"
       when: ansible_facts['distribution'] == "Amazon"
 
     - name: Install docker Python module with pip3 (Amazon Linux)

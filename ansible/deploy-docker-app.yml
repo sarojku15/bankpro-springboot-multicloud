@@ -2,11 +2,10 @@
 - hosts: all
   become: yes
   vars:
-    aws_python_bin: "/usr/bin/python3.8"
-    aws_pip_bin: "/usr/bin/pip3.8"
-
+    aws_python_bin: "/usr/bin/python3"
+    aws_pip_bin: "/usr/bin/pip3"
   tasks:
-    # 1. Install Docker (per OS)
+    # Ubuntu/Debian
     - name: Install Docker (Ubuntu/Debian)
       apt:
         name: docker.io
@@ -14,21 +13,31 @@
         update_cache: yes
       when: ansible_facts['os_family'] == "Debian"
 
+    # Amazon Linux 2 or 2023
+    - name: Detect Amazon Linux 2023+
+      set_fact:
+        is_amzn2023: "{{ (ansible_facts['distribution_major_version'] is defined and ansible_facts['distribution_major_version']|int >= 2023) }}"
+      when: ansible_facts['distribution'] == "Amazon"
+
     - name: Install Docker (Amazon Linux 2)
       shell: |
-        amazon-linux-extras install -y docker || yum install -y docker
+        if [ -x /usr/bin/dnf ]; then
+          dnf install -y docker
+        else
+          yum install -y docker
+        fi
       args:
         creates: /usr/bin/docker
       when: ansible_facts['distribution'] == "Amazon"
 
-    # 2. Start and enable Docker service everywhere
+    # Start and enable Docker on all
     - name: Start and enable Docker service
       service:
         name: docker
         state: started
         enabled: yes
 
-    # 3. Python + pip for Docker SDK
+    # Python and pip dependencies for Ubuntu
     - name: Install python3-pip (Ubuntu/Debian)
       apt:
         name: python3-pip
@@ -41,63 +50,62 @@
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Ensure pip3.8 is installed (Amazon Linux 2)
+    # Python and pip dependencies for Amazon Linux
+    - name: Ensure python3 and pip3 are installed (Amazon Linux)
       shell: |
-        yum install -y python3-pip || amazon-linux-extras install -y python3
+        if [ -x /usr/bin/dnf ]; then
+          dnf install -y python3 python3-pip
+        else
+          yum install -y python3 python3-pip
+        fi
       when: ansible_facts['distribution'] == "Amazon"
 
-    - name: Ensure compatible urllib3 and requests on Amazon Linux 2 (Python 3.8)
+    # Install docker python module (Amazon Linux)
+    - name: Install docker python module (Amazon Linux)
       shell: |
-        {{ aws_pip_bin }} install --force-reinstall "urllib3<2.0.0" "requests<2.32.0"
-      when: ansible_facts['distribution'] == "Amazon"
-
-    - name: Install docker python module (Amazon Linux 2)
-      shell: |
+        {{ aws_pip_bin }} install --upgrade pip
         {{ aws_pip_bin }} install docker
       when: ansible_facts['distribution'] == "Amazon"
 
-    - name: Ensure community.docker is present (Debian)
+    # For Debian 12+, pip needs special handling
+    - name: Ensure community.docker is present (Debian 12+)
       pip:
         name: docker
         extra_args: --break-system-packages
       when: ansible_facts['os_family'] == "Debian" and ansible_facts['distribution_major_version']|int >= 12
       ignore_errors: yes
 
-    - name: Set Ansible python interpreter (Amazon Linux 2)
+    # Pin the python interpreter for Ansible on Amazon hosts (only needed for very old Ansible)
+    - name: Set Ansible python interpreter (Amazon Linux)
       set_fact:
         ansible_python_interpreter: "{{ aws_python_bin }}"
       when: ansible_facts['distribution'] == "Amazon"
 
-    # 4. DockerHub Login (always do this before pulling)
+    # DockerHub login
     - name: Login to DockerHub
       community.docker.docker_login:
         username: "sarojnayak1983"
         password: "{{ lookup('env', 'DOCKERHUB_PASSWORD') }}"
 
-    # 5. Remove old running container (if any)
     - name: Stop previous container if running
       community.docker.docker_container:
         name: bankpro-app
         state: absent
         force_kill: yes
-      ignore_errors: yes
 
-    # 6. Remove old bankpro image (optional but best practice)
     - name: Remove old bankpro image (if any)
       community.docker.docker_image:
         name: "sarojnayak1983/bankpro"
-        tag: "latest"
+        tag: latest
         state: absent
-      ignore_errors: yes
+        force: yes
 
-    # 7. Pull the latest image
     - name: Pull image
       community.docker.docker_image:
         name: "sarojnayak1983/bankpro"
         tag: latest
         source: pull
 
-    # 8. Run new container
     - name: Run container
       community.docker.docker_container:
         name: bankpro-app
@@ -107,11 +115,9 @@
         state: started
         restart_policy: always
 
-    # 9. (Optional) Print status for debugging
     - name: Print running containers
       shell: docker ps
       register: psout
-      changed_when: false
 
     - name: Show running containers output
       debug:

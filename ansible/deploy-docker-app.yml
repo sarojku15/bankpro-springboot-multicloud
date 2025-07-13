@@ -51,6 +51,8 @@
         amazon-linux-extras install epel -y
         yum install -y python38 python3-pip
         alternatives --set python3 /usr/bin/python3.8
+      args:
+        executable: /bin/bash
       when: ansible_facts['distribution'] == "Amazon"
 
     - name: Install docker Python module with pip3 (Amazon Linux)
